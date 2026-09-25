@@ -4,265 +4,584 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>皇室战争宝箱概率查询</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        :root {
-            --primary-color: #ff6b00;
-            --secondary-color: #4a4a4a;
-            --background-color: #f5f5f5;
-            --card-color: #ffffff;
-            --text-color: #333333;
-            --border-color: #e0e0e0;
+    <!-- Chart.js：本地优先，本地文件缺失时同步回退到备用源 -->
+    <script src="js/chart.umd.js"></script>
+    <script>
+    (function () {
+        if (window.Chart) return;
+        var urls = ['https://unpkg.com/chart.js@4.4.1/dist/chart.umd.js',
+                    'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js',
+                    'https://registry.npmmirror.com/chart.js/4.4.1/files/dist/chart.umd.js'];
+        for (var i = 0; i < urls.length && !window.Chart; i++) {
+            document.write('<scr' + 'ipt src="' + urls[i] + '"><\/scr' + 'ipt>');
         }
-        
+    })();
+    </script>
+    <style>
+        /* ===== 设计变量 ===== */
+        :root {
+            --primary-color: #4c5fd5;
+            --primary-dark: #3a49ad;
+            --primary-soft: #eef0ff;
+            --accent-color: #f2a20c;
+            --secondary-color: #3c4257;
+            --background-color: #eef1f9;
+            --card-color: #ffffff;
+            --text-color: #1e2233;
+            --muted-color: #6b7280;
+            --border-color: #e4e8f2;
+            --radius-lg: 18px;
+            --radius-md: 12px;
+            --radius-sm: 8px;
+            --shadow-sm: 0 1px 2px rgba(20, 28, 60, .05), 0 2px 8px rgba(20, 28, 60, .05);
+            --shadow-md: 0 6px 20px rgba(20, 28, 60, .08);
+            --shadow-lg: 0 16px 40px rgba(20, 28, 60, .14);
+            /* .reward-card 的内边距：开箱概率表要减去同等的量才能和里面的表格对齐 */
+            --card-pad: 22px;
+        }
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
-        
+
         body {
-            background-color: var(--background-color);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, 'Microsoft YaHei', system-ui, sans-serif;
+            background:
+                radial-gradient(1100px 560px at 8% -12%, #e0e5ff 0%, rgba(224, 229, 255, 0) 62%),
+                radial-gradient(900px 520px at 102% -6%, #ffeccd 0%, rgba(255, 236, 205, 0) 58%),
+                var(--background-color);
+            background-attachment: fixed;
             color: var(--text-color);
-            line-height: 1.6;
+            line-height: 1.65;
+            -webkit-font-smoothing: antialiased;
         }
-        
-        .container {
-            max-width: 1200px;
+
+        /* ===== 顶栏 + 语言切换 ===== */
+        .topbar {
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            background: rgba(255, 255, 255, .78);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .topbar-inner {
+            max-width: 1240px;
             margin: 0 auto;
-            padding: 20px;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+        }
+
+        .brand-icon {
+            /* 图片已裁掉透明留白，本体占满整张图，34px 会显得过大 */
+            width: 22px;
+            height: 22px;
+            object-fit: contain;
+            filter: drop-shadow(0 3px 8px rgba(20, 28, 60, .2));
+        }
+
+        .brand-text {
+            font-size: .8rem;
+            font-weight: 800;
+            letter-spacing: .16em;
+            color: var(--secondary-color);
+            white-space: nowrap;
         }
 
         .language-switcher {
-            text-align: right;
-            margin-bottom: 15px;
-        }
-        
-        .lang-btn {
-            background-color: var(--primary-color);
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: all 0.3s ease;
-            text-decoration: none;
-            display: inline-block;
-        }
-        
-        .lang-btn:hover {
-            background-color: #ff8c42;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: center;
         }
 
-        
-        header {
-            text-align: center;
-            margin-bottom: 30px;
-            padding: 20px;
-            background: linear-gradient(135deg, var(--primary-color), #ff8c42);
-            color: white;
-            border-radius: 10px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        .lang-toggle {
+            display: inline-flex;
+            gap: 4px;
+            padding: 4px;
+            background: #eef1f9;
+            border: 1px solid var(--border-color);
+            border-radius: 999px;
         }
-        
-        h1 {
-            font-size: 2.2rem;
-            margin-bottom: 10px;
-        }
-        
-        .subtitle {
-            font-size: 1.1rem;
-            opacity: 0.9;
-        }
-        
-        .chest-type-selector {
-            display: flex;
-            margin-bottom: 20px;
-            background-color: var(--card-color);
-            border-radius: 10px;
-            overflow: hidden;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-            flex-wrap: wrap;
-        }
-        
-        .chest-type {
-            flex: 1;
-            padding: 15px;
-            text-align: center;
+
+        .lang-opt {
+            border: 0;
+            background: transparent;
+            font: inherit;
+            font-size: .85rem;
+            font-weight: 700;
+            letter-spacing: .02em;
+            color: var(--muted-color);
+            padding: 6px 18px;
+            border-radius: 999px;
             cursor: pointer;
-            transition: all 0.3s ease;
-            font-weight: 600;
-            border-bottom: 3px solid transparent;
-            min-width: 120px;
+            transition: background .2s ease, color .2s ease, box-shadow .2s ease;
+        }
+
+        .lang-opt:hover {
+            color: var(--primary-color);
+        }
+
+        .lang-opt.active {
+            background: var(--primary-color);
+            color: #fff;
+            box-shadow: 0 3px 10px rgba(76, 95, 213, .35);
+        }
+
+        /* ===== 版面 ===== */
+        .container {
+            max-width: 1240px;
+            margin: 0 auto;
+            padding: 0 20px 24px;
+        }
+
+        header {
+            position: relative;
+            overflow: hidden;
+            text-align: center;
+            margin: 26px 0 30px;
+            padding: 46px 28px;
+            background: linear-gradient(135deg, #4c5fd5 0%, #6c5ce7 55%, #8e6cf0 100%);
+            color: #fff;
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg);
+        }
+
+        header::before,
+        header::after {
+            content: "";
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, .13);
+        }
+
+        header::before {
+            width: 300px;
+            height: 300px;
+            top: -150px;
+            right: -80px;
+        }
+
+        header::after {
+            width: 200px;
+            height: 200px;
+            bottom: -120px;
+            left: -50px;
+            background: rgba(255, 255, 255, .1);
+        }
+
+        h1 {
+            position: relative;
+            font-size: clamp(1.5rem, 3.4vw, 2.35rem);
+            font-weight: 800;
+            line-height: 1.25;
+        }
+
+        .subtitle {
+            position: relative;
+            margin-top: 10px;
+            font-size: clamp(.9rem, 1.6vw, 1.05rem);
+            opacity: .93;
+        }
+
+        /* ===== 宝箱类型 ===== */
+        .chest-type-selector {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 22px;
+        }
+
+        .chest-type {
+            position: relative;
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 8px;
+            gap: 10px;
+            padding: 18px 10px 14px;
+            background: var(--card-color);
+            border: 1.5px solid var(--border-color);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            font-weight: 600;
+            font-size: .92rem;
+            color: var(--secondary-color);
+            text-align: center;
+            transition: transform .22s ease, box-shadow .22s ease,
+                        border-color .22s ease, background .22s ease, color .22s ease;
         }
-        
-        .chest-type.active {
-            border-bottom: 3px solid var(--primary-color);
-            color: var(--primary-color);
-            background-color: rgba(255, 107, 0, 0.05);
-        }
-        
+
         .chest-type:hover:not(.active) {
-            background-color: rgba(0, 0, 0, 0.03);
+            transform: translateY(-4px);
+            border-color: #ccd3e8;
+            box-shadow: var(--shadow-md);
+        }
+
+        .chest-type.active {
+            border-color: var(--primary-color);
+            background: linear-gradient(180deg, #f5f7ff 0%, #eceffe 100%);
+            color: var(--primary-color);
+            box-shadow: 0 10px 24px rgba(76, 95, 213, .18);
+        }
+
+        .chest-type.active::after {
+            content: "";
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(76, 95, 213, .18);
         }
 
         .chest-icon {
-            width: 80px;
-            height: 80px;
+            width: 112px;
+            height: 112px;
             object-fit: contain;
-        }
-        
-        .tabs {
-            display: flex;
-            background-color: var(--card-color);
-            border-radius: 10px;
-            overflow: hidden;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-        }
-        
-        .tab {
-            flex: 1;
-            padding: 15px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-weight: 600;
-            border-bottom: 3px solid transparent;
-        }
-        
-        .tab.active {
-            border-bottom: 3px solid var(--primary-color);
-            color: var(--primary-color);
-            background-color: rgba(255, 107, 0, 0.05);
-        }
-        
-        .tab:hover:not(.active) {
-            background-color: rgba(0, 0, 0, 0.03);
-        }
-        
-        .tab-content {
-            display: none;
-            background-color: var(--card-color);
-            border-radius: 10px;
-            padding: 25px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-        }
-        
-        .tab-content.active {
-            display: block;
-            animation: fadeIn 0.5s ease;
-        }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-        
-        .section-title {
-            font-size: 1.5rem;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid var(--border-color);
-            color: var(--secondary-color);
-        }
-        
-        .chart-container {
-            height: 400px;
-            margin-bottom: 30px;
-        }
-        
-        .data-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 20px;
-            font-size: 0.9rem;
-        }
-        
-        .data-table th, .data-table td {
-            padding: 10px 12px;
-            text-align: center;
-            border: 1px solid var(--border-color);
-        }
-        
-        .data-table th {
-            background-color: rgba(255, 107, 0, 0.1);
-            font-weight: 600;
-        }
-        
-        .data-table tr:nth-child(even) {
-            background-color: rgba(0, 0, 0, 0.02);
+            transition: transform .25s ease;
         }
 
-        .data-table tr:nth-child(odd) {
-            background-color: white;
+        .chest-type:hover .chest-icon {
+            transform: scale(1.06);
         }
-        
+
+        /* ===== 标签页 ===== */
+        /* 三段内容合并到同一页后，标签栏退化为「页内跳转」，并吸顶在顶栏下方 */
+        .tabs {
+            display: flex;
+            gap: 6px;
+            padding: 6px;
+            margin-bottom: 22px;
+            background: var(--card-color);
+            border: 1px solid var(--border-color);
+            border-radius: 999px;
+            box-shadow: var(--shadow-sm);
+            overflow-x: auto;
+            position: sticky;
+            top: var(--topbar-h, 60px);
+            z-index: 40;
+        }
+
+        .tab {
+            flex: 1 0 auto;
+            white-space: nowrap;
+            padding: 11px 22px;
+            text-align: center;
+            cursor: pointer;
+            border-radius: 999px;
+            font-weight: 600;
+            font-size: .95rem;
+            color: var(--muted-color);
+            transition: background .22s ease, color .22s ease, box-shadow .22s ease;
+        }
+
+        .tab:hover:not(.active) {
+            background: var(--primary-soft);
+            color: var(--primary-color);
+        }
+
+        .tab-off {
+            display: none;
+        }
+
+        .tab.active {
+            background: linear-gradient(135deg, var(--primary-color), #6c5ce7);
+            color: #fff;
+            box-shadow: 0 6px 16px rgba(76, 95, 213, .28);
+        }
+
+        .tab-content {
+            display: none;
+            background: var(--card-color);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 28px;
+            box-shadow: var(--shadow-sm);
+            overflow-x: auto;
+        }
+
+        .tab-content.active {
+            display: block;
+            animation: fadeIn .45s ease both;
+        }
+
+        /* 同页展示：只要所属宝箱是当前项，三段内容一起显示 */
+        .chest-content.active .tab-content {
+            display: block;
+            margin-bottom: 22px;
+        }
+
+        .chest-content.active .tab-content:last-child {
+            margin-bottom: 0;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: none; }
+        }
+
+        .section-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.18rem;
+            font-weight: 700;
+            color: var(--secondary-color);
+            margin-bottom: 18px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .section-title::before {
+            content: "";
+            flex: none;
+            width: 5px;
+            height: 20px;
+            border-radius: 3px;
+            background: linear-gradient(180deg, var(--primary-color), #8e6cf0);
+        }
+
+        .chart-container {
+            height: 400px;
+            margin-bottom: 32px;
+            padding: 16px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            background: linear-gradient(180deg, #fbfcff, #f6f8ff);
+        }
+
+        /* ===== 数据表 ===== */
+        .data-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin-bottom: 8px;
+            font-size: .875rem;
+            font-variant-numeric: tabular-nums;
+            background: var(--card-color);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+        }
+
+        .data-table th,
+        .data-table td {
+            padding: 11px 14px;
+            text-align: center;
+            border-bottom: 1px solid var(--border-color);
+            white-space: nowrap;
+        }
+
+        .data-table th {
+            background: linear-gradient(180deg, #f3f5ff, #eaeefa);
+            color: var(--secondary-color);
+            font-weight: 700;
+            font-size: .8rem;
+            letter-spacing: .02em;
+        }
+
+        .data-table td {
+            color: #333a4d;
+        }
+
+        .data-table tbody tr:last-child td {
+            border-bottom: 0;
+        }
+
+        .data-table tbody tr {
+            transition: background .15s ease;
+        }
+
+        .data-table tbody tr:nth-child(even) {
+            background: #fafbff;
+        }
+
+        .data-table tbody tr:hover {
+            background: var(--primary-soft);
+        }
+
+        .data-table td:first-child {
+            font-weight: 600;
+            color: var(--secondary-color);
+        }
+
+        /* 开箱概率表要和「奖励数量与概率」表左右对齐：那张表躺在 padding var(--card-pad)
+           + 1px 边框的 .reward-card 里，所以这里减同样的量再居中，两张表宽度分毫不差。
+           卡片内边距在窄屏会被改小，跟着变量走就不会跑偏。 */
+        .tab-content[id$="-chest-probability"] .data-table {
+            width: calc(100% - 2 * var(--card-pad) - 2px);
+            max-width: 100%;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* 窄屏下 11 列表会挤爆：让表头允许换行（单元格数字保持不换行），
+           表格就能一直收到容器宽度内，不再横向滚动 */
+        .tab-content[id$="-chest-probability"] .data-table th {
+            white-space: normal;
+        }
+
+        .data-table thead tr:first-child th:first-child {
+            border-top-left-radius: var(--radius-md);
+        }
+
+        .data-table thead tr:first-child th:last-child {
+            border-top-right-radius: var(--radius-md);
+        }
+
+        .data-table tbody tr:last-child td:first-child {
+            border-bottom-left-radius: var(--radius-md);
+        }
+
+        .data-table tbody tr:last-child td:last-child {
+            border-bottom-right-radius: var(--radius-md);
+        }
+
+        /* ===== 选择器 / 卡片 ===== */
         .arena-selector {
             display: flex;
-            gap: 15px;
-            margin-bottom: 25px;
+            gap: 16px;
             flex-wrap: wrap;
+            margin-bottom: 24px;
         }
-        
+
         .selector-group {
             flex: 1;
-            min-width: 200px;
+            min-width: 220px;
         }
-        
+
         label {
             display: block;
             margin-bottom: 8px;
             font-weight: 600;
+            font-size: .9rem;
             color: var(--secondary-color);
         }
-        
+
         select {
             width: 100%;
-            padding: 10px 15px;
-            border: 1px solid var(--border-color);
-            border-radius: 5px;
-            background-color: white;
-            font-size: 1rem;
+            padding: 11px 44px 11px 16px;
+            border: 1.5px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            background-color: var(--card-color);
+            background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.2' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 14px center;
+            background-size: 16px 16px;
+            font-family: inherit;
+            font-size: .95rem;
+            font-weight: 600;
+            color: var(--text-color);
+            cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+            transition: border-color .2s ease, box-shadow .2s ease;
         }
-        
+
+        select:hover {
+            border-color: #c8d0e8;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 4px rgba(76, 95, 213, .14);
+        }
+
         .reward-card {
-            background-color: white;
-            border-radius: 10px;
-            padding: 20px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-            margin-bottom: 20px;
-            overflow-x: auto; 
+            background: linear-gradient(180deg, #ffffff, #fcfdff);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: var(--card-pad);
+            box-shadow: var(--shadow-sm);
+            margin-bottom: 8px;
+            overflow-x: auto;
             max-width: 100%;
         }
-        
+
+        .reward-card::-webkit-scrollbar,
+        .tab-content::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        .reward-card::-webkit-scrollbar-thumb,
+        .tab-content::-webkit-scrollbar-thumb {
+            background: #d6dbec;
+            border-radius: 999px;
+        }
+
         .reward-title {
-            font-size: 1.3rem;
-            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 1.05rem;
+            font-weight: 700;
             color: var(--primary-color);
+            margin-bottom: 16px;
         }
-        
+
+        .reward-title::before {
+            content: "";
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--accent-color);
+            box-shadow: 0 0 0 4px rgba(242, 162, 12, .16);
+        }
+
+        /* ===== 合并表：每个星级下并排「数量 / 概率」 ===== */
+        .cell-amount {
+            display: block;
+            font-weight: 700;
+            color: var(--secondary-color);
+            line-height: 1.35;
+        }
+
+        .cell-chance {
+            display: block;
+            font-size: .72rem;
+            font-weight: 600;
+            line-height: 1.35;
+            color: var(--muted-color);
+        }
+
+        .data-table td.reward-cell {
+            padding: 8px 10px;
+        }
+
+        .table-note {
+            margin-top: 12px;
+            font-size: .78rem;
+            color: var(--muted-color);
+        }
+
+        /* 概率档位配色（放在 .cell-chance 之后，保证覆盖基础色） */
         .probability-high {
-            color: #4CAF50;
-            font-weight: 600;
+            color: #0f9d58;
+            font-weight: 700;
         }
-        
+
         .probability-medium {
-            color: #FF9800;
-            font-weight: 600;
+            color: #e08a00;
+            font-weight: 700;
         }
-        
+
         .probability-low {
-            color: #F44336;
-            font-weight: 600;
+            color: #e0455a;
+            font-weight: 700;
         }
 
         .chest-content {
@@ -271,51 +590,1086 @@
 
         .chest-content.active {
             display: block;
-            animation: fadeIn 0.5s ease;
+            animation: fadeIn .45s ease both;
         }
-        
+
+        /* ===== 页脚 ===== */
         .footer {
-            text-align: center;
-            margin-top: 40px;
-            padding-top: 20px;
+            /* 上一段 .tab-content 自带 margin-bottom 22px 会塌缩进来，
+               用负 margin 把它抵掉，让页脚尽量贴住上面的内容 */
+            margin-top: -12px;
+            padding-top: 8px;
             border-top: 1px solid var(--border-color);
-            color: var(--secondary-color);
-            font-size: 0.9rem;
+            text-align: center;
+            color: var(--muted-color);
+            font-size: .85rem;
         }
-        
+
+        /* 数据来源：纯文字 + 下划线链接，不套胶囊底框、不加粗 */
+        .footer p:first-child {
+            display: block;
+            padding: 0;
+            border-radius: 0;
+            background: none;
+            border: 0;
+            box-shadow: none;
+            color: var(--muted-color);
+            font-weight: 400;
+        }
+
+        .footer a {
+            color: var(--muted-color);
+            text-decoration: underline;
+            text-underline-offset: 2px;
+        }
+
+        .footer a:hover {
+            color: var(--primary-color);
+        }
+
+        /* ===== 响应式 ===== */
+        @media (max-width: 1024px) {
+            .chest-type-selector {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+        }
+
         @media (max-width: 768px) {
-            .chest-type-selector, .tabs {
-                flex-direction: column;
+            :root {
+                --card-pad: 14px;
             }
-            
-            .arena-selector {
-                flex-direction: column;
+            .container {
+                padding: 0 14px 44px;
             }
-            
-            .chart-container {
-                height: 300px;
+
+            .topbar-inner {
+                padding: 10px 14px;
             }
-            
-            .data-table {
-                font-size: 0.8rem;
+
+            .brand-text {
+                display: none;
             }
-            
-            .data-table th, .data-table td {
-                padding: 8px 10px;
+
+            header {
+                margin: 18px 0 22px;
+                padding: 32px 18px;
+            }
+
+            .chest-type-selector {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 10px;
+            }
+
+            .chest-type {
+                padding: 14px 8px 12px;
+                font-size: .85rem;
             }
 
             .chest-icon {
-                width: 70px;
-                height: 70px;
-            } 
+                width: 84px;
+                height: 84px;
+            }
+
+            .tabs {
+                border-radius: var(--radius-md);
+            }
+
+            .tab {
+                padding: 10px 14px;
+                font-size: .85rem;
+            }
+
+            .tab-content {
+                padding: 16px;
+                border-radius: var(--radius-md);
+            }
+
+            .chart-container {
+                height: 300px;
+                padding: 8px;
+            }
+
+            .arena-selector {
+                flex-direction: column;
+            }
+
+            .data-table {
+                font-size: .78rem;
+            }
+
+            .data-table th,
+            .data-table td {
+                padding: 8px 10px;
+            }
+
+            .reward-card {
+                padding: var(--card-pad);
+                border-radius: var(--radius-md);
+            }
         }
     </style>
 </head>
 <body>
+<script>
+/* ===== 中英双语运行时（由中文版与英文版合并生成，勿手改） ===== */
+(function () {
+    'use strict';
+
+    var EXACT = {
+    "皇室战争宝箱概率查询": "Clash Royale Chest Probability",
+    "查询各种宝箱开箱概率及竞技场奖励详情": "Check Drop Rates and Reward Chances for Various Chests in Different Arenas",
+    "普通宝箱": "Common Chest",
+    "魔法宝箱": "Magic Chest",
+    "赛季宝箱": "Seasonal Chest",
+    "进化宝箱": "Evolution Box",
+    "英雄宝箱": "Hero Box",
+    "开箱概率": "Drop Rates",
+    "奖励数量": "Reward Amounts",
+    "奖励概率": "Reward Chances",
+    "普通宝箱 - 开箱概率分析": "Common Chest - Drop Rate Analysis",
+    "初始星级": "Initial Star Level",
+    "旋转数": "Spins",
+    "1星概率": "1-Star Prob.",
+    "升星概率": "Upgrade Prob.",
+    "2星概率": "2-Star Prob.",
+    "3星概率": "3-Star Prob.",
+    "4星概率": "4-Star Prob.",
+    "普通宝箱 - 奖励数量查询": "Common Chest - Reward Amount Query",
+    "选择竞技场范围:": "Select Arena Range:",
+    "奖励详情": "Reward Details",
+    "普通宝箱 - 奖励概率（宝箱等级12）": "Common Chest - Reward Probability (Chest Lv.12)",
+    "奖励类型": "Category",
+    "金币": "Gold",
+    "普通卡": "Common Card",
+    "稀有卡": "Rare Card",
+    "史诗卡": "Epic Card",
+    "传奇卡": "Legendary Card",
+    "英雄卡": "Champion Card",
+    "魔法宝箱 - 开箱概率分析": "Magic Chest - Drop Rate Analysis",
+    "5星概率": "5-Star Prob.",
+    "1星": "1-Star",
+    "2星": "2-Star",
+    "3星": "3-Star",
+    "4星": "4-Star",
+    "5星": "5-Star",
+    "魔法宝箱 - 奖励数量查询": "Magic Chest - Reward Amount Query",
+    "魔法宝箱 - 奖励概率（宝箱等级12）": "Magic Chest - Reward Probability (Chest Lv.12)",
+    "普通外卡": "Common Wild Card",
+    "稀有外卡": "Rare Wild Card",
+    "史诗外卡": "Epic Wild Card",
+    "传奇外卡": "Legendary Wild Card",
+    "英雄外卡": "Champion Wild Card",
+    "战旗": "Banner",
+    "表情": "Emote",
+    "进化碎片": "Evolution Shard",
+    "进化卡": "Full Evolution",
+    "赛季宝箱 - 开箱概率分析": "Seasonal Chest - Drop Rate Analysis",
+    "赛季宝箱 - 奖励数量查询": "Seasonal Chest - Reward Amount Query",
+    "赛季宝箱 - 奖励概率查询": "Seasonal Chest - Reward Probability Query",
+    "概率详情": "Chance Details",
+    "进化宝箱 - 开箱概率分析": "Evolution Box - Drop Rate Analysis",
+    "进化宝箱 - 奖励数量": "Evolution Box - Reward Amount",
+    "3星数量": "3-Star Amount",
+    "4星数量": "4-Star Amount",
+    "5星数量": "5-Star Amount",
+    "随机进化碎片": "Random Evolution Shards",
+    "进化宝箱 - 奖励概率": "Evolution Box - Reward Probability",
+    "随机进化碎片*1": "Random Evolution Shard*1",
+    "随机进化碎片*2": "Random Evolution Shards*2",
+    "随机进化碎片*6": "Random Evolution Shards*6",
+    "英雄宝箱 - 开箱概率分析": "Hero Box - Drop Rate Analysis",
+    "英雄宝箱 - 奖励数量": "Hero Box - Reward Amount",
+    "英雄硬币": "Hero Coins",
+    "数据来源：": "Data Source: ",
+    "皇室战争官方": "Clash Royale Official",
+    "切换到英文版": "Switch to Chinese Version",
+    "1星开箱": "1-Star Drop",
+    "获得1星": "Get 1-Star",
+    "获得2星": "Get 2-Star",
+    "获得3星": "Get 3-Star",
+    "获得4星": "Get 4-Star",
+    "概率 (%)": "Probability (%)",
+    "获得不同星级普通宝箱的概率分布": "Probability Distribution of Getting Different Star Levels of Common Chest",
+    "2星开箱": "2-Star Drop",
+    "3星开箱": "3-Star Drop",
+    "4星开箱": "4-Star Drop",
+    "5星开箱": "5-Star Drop",
+    "获得5星": "Get 5-Star",
+    "获得不同星级魔法宝箱的概率分布": "Probability Distribution of Getting Different Star Levels of Magic Chest",
+    "获得不同星级赛季宝箱的概率分布": "Probability Distribution of Getting Different Star Levels of Seasonal Chest",
+    "获得不同星级进化宝箱的概率分布": "Probability Distribution of Getting Different Star Levels of Evolution Box",
+    "获得不同星级英雄宝箱的概率分布": "Probability Distribution of Getting Different Star Levels of Hero Box",
+    "竞技场 ${arena.arenaRange} (宝箱等级 ${arena.starLevel})": "Arena {1} (Chest Lv.{2})",
+    "一星": "1-Star",
+    "二星": "2-Star",
+    "三星": "3-Star",
+    "四星": "4-Star",
+    "五星": "5-Star",
+    "竞技场 ${arena.arenaRange}": "Arena {1}",
+    "赛季普通卡": "Seasonal Common Card",
+    "赛季稀有卡": "Seasonal Rare Card",
+    "赛季史诗卡": "Seasonal Epic Card",
+    "赛季传奇卡": "Seasonal Legendary Card",
+    "赛季英雄卡": "Seasonal Champion Card",
+    "战旗装饰": "Banner Decoration",
+    "战旗框架": "Banner Frame",
+    "赛季进化碎片": "Seasonal Evolution Shard",
+    "赛季进化卡": "Seasonal Full Evolution",
+    "奖励数量与概率": "Amount & Chance",
+    "普通宝箱 - 奖励数量与概率": "Common Chest - Amount & Chance",
+    "魔法宝箱 - 奖励数量与概率": "Magic Chest - Amount & Chance",
+    "赛季宝箱 - 奖励数量与概率": "Seasonal Chest - Amount & Chance",
+    "进化宝箱 - 奖励数量与概率": "Evolution Box - Amount & Chance",
+    "英雄宝箱 - 奖励数量与概率": "Hero Box - Amount & Chance",
+    "宝箱等级 13 及以上才有奖励概率数据": "Reward chance is only available from Chest Lv.13"
+    };
+    var CR_PROB = {
+    "normal": {
+    "gold": [
+    0.5,
+    0.4,
+    0.3,
+    null
+    ],
+    "commonCard": [
+    0.2589,
+    0.2091,
+    0.195,
+    0.2786
+    ],
+    "rareCard": [
+    0.2411,
+    0.1947,
+    0.1816,
+    0.2594
+    ],
+    "epicCard": [
+    null,
+    0.1962,
+    0.1829,
+    0.2613
+    ],
+    "legendaryCard": [
+    null,
+    null,
+    0.1083,
+    0.1547
+    ],
+    "heroCard": [
+    null,
+    null,
+    0.0323,
+    0.0461
+    ]
+    },
+    "magic": {
+    "gold": [
+    0.5,
+    0.3846,
+    0.2885,
+    null,
+    null
+    ],
+    "commonCard": [
+    0.2589,
+    0.2011,
+    0.1875,
+    0.1644,
+    0.1602
+    ],
+    "rareCard": [
+    0.2411,
+    0.1872,
+    0.1746,
+    0.153,
+    0.1491
+    ],
+    "epicCard": [
+    null,
+    0.1886,
+    0.1759,
+    0.1542,
+    0.1502
+    ],
+    "legendaryCard": [
+    null,
+    null,
+    0.1041,
+    0.0912,
+    0.0889
+    ],
+    "heroCard": [
+    null,
+    null,
+    0.031,
+    0.0272,
+    0.0265
+    ],
+    "commonWildCard": [
+    null,
+    null,
+    null,
+    0.08,
+    0.09
+    ],
+    "rareWildCard": [
+    null,
+    null,
+    null,
+    0.075,
+    0.08
+    ],
+    "epicWildCard": [
+    null,
+    null,
+    null,
+    0.07,
+    0.065
+    ],
+    "legendaryWildCard": [
+    null,
+    null,
+    null,
+    0.065,
+    0.055
+    ],
+    "heroWildCard": [
+    null,
+    null,
+    null,
+    0.065,
+    0.04
+    ],
+    "banner": [
+    null,
+    0.0385,
+    null,
+    null,
+    null
+    ],
+    "emote": [
+    null,
+    null,
+    0.0385,
+    null,
+    null
+    ],
+    "evolutionShard": [
+    null,
+    null,
+    null,
+    0.055,
+    null
+    ],
+    "evolutionCard": [
+    null,
+    null,
+    null,
+    null,
+    0.095
+    ]
+    }
+    };
+    var ATTRS = ['alt', 'title', 'placeholder', 'aria-label'];
+    var SKIP = { SCRIPT: 1, STYLE: 1, NOSCRIPT: 1, TEXTAREA: 1 };
+    var TPL = [];
+    var LANG = 'zh';
+    var busy = false;
+
+    /* 含 ${...} 的模板键编译成正则 */
+    (function () {
+        for (var k in EXACT) {
+            if (k.indexOf('${') === -1) continue;
+            var esc = k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            var body = esc.replace(/\\\$\\\{[^}]*\\\}/g, '(.+?)');
+            TPL.push({ re: new RegExp('^' + body + '$'), en: EXACT[k] });
+        }
+    })();
+
+    function swap(s, t, to) {
+        var p = s.indexOf(t);
+        return p < 0 ? s : s.slice(0, p) + to + s.slice(p + t.length);
+    }
+
+    function fill(tpl, args) {
+        return tpl.replace(/\{(\d)\}/g, function (m, i) {
+            var v = args[parseInt(i, 10) - 1];
+            return v == null ? m : v;
+        });
+    }
+
+    /* 单段文本翻译：无命中则原样返回（视为专有名词或数据） */
+    function tr(s) {
+        if (LANG !== 'en' || s == null) return s;
+        var t = s.trim();
+        if (!t) return s;
+        var hit = EXACT[t];
+        if (hit != null) return swap(s, t, hit);
+        for (var i = 0; i < TPL.length; i++) {
+            var m = t.match(TPL[i].re);
+            if (m) return swap(s, t, fill(TPL[i].en, m.slice(1)));
+        }
+        return s;
+    }
+
+    function deepTr(v) {
+        if (typeof v === 'string') return tr(v);
+        if (v && typeof v === 'object') {
+            for (var k in v) {
+                if (Object.prototype.hasOwnProperty.call(v, k)) v[k] = deepTr(v[k]);
+            }
+        }
+        return v;
+    }
+
+    /* ===== 图表重塑 + 美化（纯 Chart.js 配置，不引第三方插件） =====
+       原页每种宝箱都是「一根竖直堆叠柱」。只有一个分布的宝箱（普通/赛季/英雄）在宽画布里
+       孤零零一根柱子，配色再好也难看。于是按数据形状分流：
+         · 单类目（x 只有 1 个值） -> 横向条形图，一个星级一根条，y 轴直接写「获得N星」
+         · 多类目（类目 × 结果 矩阵）-> 横向 100% 堆叠条，一个类目一根条，段内标百分比
+       两者共用：星级色板 + 沿条方向的渐变、圆角、网格/图例/提示统一到页面设计语言。 */
+    var STAR_FROM = ['#8fc0f0', '#63d8c9', '#ffd35c', '#ffa678', '#c39ae8'];
+    var STAR_TO   = ['#4a8fd6', '#26a99b', '#f0a800', '#ef6320', '#8e4dbb'];
+    var STAR_TEXT = ['#ffffff', '#ffffff', '#4a3200', '#ffffff', '#ffffff'];
+
+    /* 「获得3星」/「3-Star」-> 0..4 */
+    function starIdx(label) {
+        var s = String(label == null ? '' : label);
+        var m = s.match(/(\d)\s*星/) || s.match(/(\d)\s*-\s*star/i);
+        var n = m ? parseInt(m[1], 10) : 1;
+        return Math.min(4, Math.max(0, n - 1));
+    }
+
+    /* 渐变都按绘制时的图表区实时生成，窗口缩放/图例换行都不会错位。
+       横向条的渐变沿条自身的长度铺（左->右），短条也能拿到完整的一整套色。 */
+    function hGradient(chart, s, v) {
+        var area = chart.chartArea;
+        var x0 = area ? area.left : 0;
+        var full = area ? (area.right - area.left) : (chart.width || 600);
+        var x1 = x0 + full * (Math.min(v || 0, 100) / 100);
+        if (x1 <= x0) x1 = x0 + 1;
+        var g = chart.ctx.createLinearGradient(x0, 0, x1, 0);
+        g.addColorStop(0, STAR_FROM[s]);
+        g.addColorStop(1, STAR_TO[s]);
+        return g;
+    }
+
+    /* 单分布横向条：颜色由 y 轴的条名（「获得N星」）决定 */
+    function barGradient(c) {
+        var chart = c && c.chart;
+        if (!chart || !chart.ctx) return '#4a8fd6';
+        var s = starIdx(chart.data.labels ? chart.data.labels[c.dataIndex] : null);
+        return hGradient(chart, s, chart.data.datasets[0].data[c.dataIndex]);
+    }
+    function barSolid(c) {
+        var chart = c && c.chart;
+        return STAR_TO[starIdx(chart && chart.data.labels ? chart.data.labels[c.dataIndex] : null)];
+    }
+
+    /* 堆叠段：颜色由数据集名（「获得N星」）决定 */
+    function segGradient(c) {
+        var chart = c && c.chart;
+        if (!chart || !chart.ctx) return '#4a8fd6';
+        var s = starIdx(c.dataset && c.dataset.label);
+        return hGradient(chart, s, c.dataset.data[c.dataIndex]);
+    }
+
+    var SEG_LABELS = {
+        id: 'crSegLabels',
+        afterDatasetsDraw: function (chart) {
+            var ctx = chart.ctx;
+            var horiz = chart.options.indexAxis === 'y';
+            var stacked = !!(chart.options.scales && chart.options.scales.x && chart.options.scales.x.stacked);
+            ctx.save();
+            ctx.font = '600 11px system-ui, "Segoe UI", "Microsoft YaHei", sans-serif';
+            ctx.textBaseline = 'middle';
+            for (var i = 0; i < chart.data.datasets.length; i++) {
+                var meta = chart.getDatasetMeta(i);
+                if (!meta || meta.hidden) continue;
+                var ds = chart.data.datasets[i];
+                var ink = STAR_TEXT[starIdx(ds.label)];
+                for (var j = 0; j < meta.data.length; j++) {
+                    var v = ds.data[j];
+                    if (!v || v < 1) continue;
+                    var el = meta.data[j];
+                    if (!el || el.x == null || el.y == null) continue;
+                    var txt = (Math.round(v * 10) / 10) + '%';
+                    if (horiz && !stacked) {
+                        /* 单根横条：数值标在条内右端，条太短就挪到条外 */
+                        if (el.x - el.base < 40) {
+                            ctx.textAlign = 'left'; ctx.fillStyle = '#5b6b83';
+                            ctx.fillText(txt, el.x + 7, el.y);
+                        } else {
+                            ctx.textAlign = 'right'; ctx.fillStyle = '#ffffff';
+                            ctx.fillText(txt, el.x - 10, el.y);
+                        }
+                    } else if (horiz) {
+                        if (el.x - el.base < 34) continue;      /* 段太窄放不下字 */
+                        ctx.textAlign = 'center'; ctx.fillStyle = ink;
+                        ctx.fillText(txt, (el.base + el.x) / 2, el.y);
+                    } else {
+                        if (el.base - el.y < 15) continue;
+                        ctx.textAlign = 'center'; ctx.fillStyle = ink;
+                        ctx.fillText(txt, el.x, el.y + (el.base - el.y) / 2);
+                    }
+                }
+            }
+            ctx.restore();
+        }
+    };
+
+    function beautifyChart(cfg) {
+        if (!cfg || typeof cfg !== 'object' || !cfg.data) return cfg;
+        var ds = cfg.data.datasets || [], i;
+        if (!ds.length) return cfg;
+        var single = (cfg.data.labels || []).length <= 1;
+
+        if (single) {
+            /* 单分布 -> 换成「一个星级一根横条」，y 轴就是各星级名，图例可以省掉 */
+            var vals = [], names = [];
+            for (i = 0; i < ds.length; i++) { vals.push(ds[i].data[0]); names.push(ds[i].label); }
+            cfg.data = {
+                labels: names,
+                datasets: [{
+                    label: '',
+                    data: vals,
+                    backgroundColor: barGradient,
+                    hoverBackgroundColor: barSolid,
+                    borderRadius: 8,
+                    borderSkipped: false,
+                    borderWidth: 0,
+                    maxBarThickness: 46
+                }]
+            };
+        } else {
+            /* 类目 × 结果 矩阵 -> 保持堆叠，改成横向 100% 条 */
+            for (i = 0; i < ds.length; i++) {
+                var d = ds[i];
+                d.backgroundColor = segGradient;
+                d.hoverBackgroundColor = STAR_TO[starIdx(d.label)];
+                d.borderRadius = 5;
+                d.borderSkipped = false;
+                d.borderWidth = 2;
+                d.borderColor = '#ffffff';
+                d.maxBarThickness = 72;
+            }
+        }
+
+        var o = cfg.options = cfg.options || {};
+        o.responsive = true;
+        o.maintainAspectRatio = false;
+        o.indexAxis = 'y';                       /* 宽画布里横向条比竖柱好读得多 */
+        o.layout = Object.assign(o.layout || {}, { padding: { top: 2, right: 48, bottom: 0, left: 4 } });
+        o.animation = { duration: 700, easing: 'easeOutQuart' };
+        o.interaction = { mode: 'index', intersect: false };
+
+        /* 横向时：x = 数值轴，y = 类目轴（原配置是反的，要带过去） */
+        var sc = o.scales = o.scales || {};
+        var val = sc.x = sc.x || {};
+        var cat = sc.y = sc.y || {};
+        var axisText = (cat.title && cat.title.text) ? cat.title.text : '\u6982\u7387 (%)';
+        val.stacked = !single;
+        val.beginAtZero = true;
+        val.max = 100;
+        val.grid = { color: 'rgba(120,140,175,.16)', drawBorder: false, drawTicks: false };
+        val.border = { display: false };
+        val.ticks = Object.assign(val.ticks || {}, {
+            stepSize: 20, padding: 8, color: '#8494ab', font: { size: 11.5 },
+            callback: function (v) { return v + '%'; }
+        });
+        val.title = { display: true, text: axisText, color: '#8494ab',
+                      font: { size: 11.5, weight: '600' } };
+        cat.stacked = !single;
+        cat.grid = { display: false, drawBorder: false };
+        cat.border = { display: false };
+        cat.title = Object.assign(cat.title || {}, { display: false });   /* 轴标题搬到数值轴去了，文本留着别动 */
+        cat.ticks = Object.assign(cat.ticks || {}, {
+            color: '#5b6b83', padding: 8, font: { size: 12, weight: '600' }
+        });
+        cat.barPercentage = 0.78;
+        cat.categoryPercentage = single ? 0.72 : 0.86;
+
+        var pl = o.plugins = o.plugins || {};
+        pl.legend = Object.assign(pl.legend || {}, {
+            display: !single,                    /* 单分布时 y 轴已经写了名字，图例是多余的 */
+            position: 'top', align: 'end',
+            labels: {
+                usePointStyle: true, pointStyle: 'rectRounded', boxWidth: 9, boxHeight: 9,
+                padding: 16, color: '#46566e', font: { size: 12, weight: '600' }
+            }
+        });
+        var tt = pl.tooltip = pl.tooltip || {};
+        tt.backgroundColor = 'rgba(23,32,50,.92)';
+        tt.titleColor = '#ffffff';
+        tt.bodyColor = '#e6ecf5';
+        tt.padding = 12;
+        tt.cornerRadius = 10;
+        tt.boxPadding = 6;
+        tt.usePointStyle = true;
+        tt.titleFont = { size: 12, weight: '700' };
+        tt.bodyFont = { size: 12.5 };
+        tt.callbacks = Object.assign(tt.callbacks || {}, {});
+        if (single) {
+            /* 原回调拼的是「数据集名: 值%」，重组后数据集名是空的会打出「: 31.44%」 */
+            tt.callbacks.label = function (c) { return c.raw + '%'; };
+        }
+        pl.title = Object.assign(pl.title || {}, {
+            color: '#1b2a41', font: { size: 15.5, weight: '700' }, padding: { top: 2, bottom: 12 }
+        });
+
+        cfg.plugins = (cfg.plugins || []).concat([SEG_LABELS]);
+        return cfg;
+    }
+
+    /* 遍历 DOM：文本节点与属性（原文缓存在 __zh* 上，切回中文可精确还原） */
+    function walk(node) {
+        if (node.nodeType === 3) {
+            if (node.__zh === undefined) node.__zh = node.nodeValue;
+            node.nodeValue = LANG === 'en' ? tr(node.__zh) : node.__zh;
+            return;
+        }
+        if (node.nodeType !== 1 || SKIP[node.tagName]) return;
+        for (var a = 0; a < ATTRS.length; a++) {
+            var name = ATTRS[a];
+            if (!node.hasAttribute || !node.hasAttribute(name)) continue;
+            var slot = '__zh_' + name;
+            if (node[slot] === undefined) node[slot] = node.getAttribute(name);
+            node.setAttribute(name, LANG === 'en' ? tr(node[slot]) : node[slot]);
+        }
+        for (var i = 0; i < node.childNodes.length; i++) walk(node.childNodes[i]);
+    }
+
+    /* 万一 Chart.js 还是没加载成功（完全离线 + 本地文件缺失）：给个空壳，
+       避免主脚本在 `Chart is not defined` 处中断，连累下拉框 / 数量列等与图表无关的功能 */
+    if (!window.Chart) {
+        window.__chartMissing = true;
+        window.Chart = function () { this.destroy = function () {}; };
+        window.Chart.getChart = function () { return null; };
+    }
+
+    /* Chart.js 配置在构造时深翻译，标签/标题/提示都跟着走；顺手做一次美化 */
+    (function patchChart() {
+        if (!window.Chart || window.__chartPatched) return;
+        var Orig = window.Chart;
+        try {
+            window.Chart = new Proxy(Orig, {
+                construct: function (target, args) {
+                    try {
+                        if (args && args[1]) args[1] = deepTr(beautifyChart(args[1]));
+                    } catch (e) {}
+                    return Reflect.construct(target, args);
+                }
+            });
+            window.__chartPatched = true;
+        } catch (e) {
+            window.Chart = Orig;
+        }
+    })();
+
+    var CHART_IDS = ['normalProbabilityChart', 'magicProbabilityChart', 'seasonProbabilityChart',
+                     'evolutionProbabilityChart', 'heroProbabilityChart'];
+    var CHART_FNS = ['initNormalProbabilityChart', 'initMagicProbabilityChart', 'initSeasonProbabilityChart',
+                     'initEvolutionProbabilityChart', 'initheroProbabilityChart'];
+
+    function refreshCharts() {
+        if (!window.Chart || !window.Chart.getChart) return;
+        var exists = false, i;
+        for (i = 0; i < CHART_IDS.length; i++) {
+            if (window.Chart.getChart(CHART_IDS[i])) { exists = true; break; }
+        }
+        if (!exists) return;                       // 首次加载时图表尚未创建
+        for (i = 0; i < CHART_IDS.length; i++) {
+            var c = window.Chart.getChart(CHART_IDS[i]);
+            if (c) c.destroy();
+        }
+        for (i = 0; i < CHART_FNS.length; i++) {
+            if (typeof window[CHART_FNS[i]] === 'function') window[CHART_FNS[i]]();
+        }
+    }
+
+    /* Chart.js 只监听 window.resize 来重算画布尺寸。原页在加载时一次性创建全部 5 张图表，
+       但当时只有默认宝箱可见，其余 4 张的容器是 display:none —— 画布被量成 0×0，
+       之后切换宝箱并不会触发 resize，于是那 4 张图**永远是空白**（实例在、数据也在，就是画不出来）。
+       这里监听 .chest-content 的 class 变化，面板一显示就把里面的图表 resize 一次。 */
+    function resizeChartsIn(root) {
+        if (!window.Chart || !window.Chart.getChart || !root) return;
+        var cv = root.querySelectorAll('canvas'), i;
+        for (i = 0; i < cv.length; i++) {
+            var inst = window.Chart.getChart(cv[i]);
+            if (!inst) continue;
+            try {
+                /* 关键：隐藏时创建的图表，初始动画因画布 0×0 一直没跑完，
+                   Chart.js 的 resize() 见 Animations.running() 为真，只把尺寸记进
+                   _resizeBeforeDraw 就返回，并不真正执行 —— 必须先 stop() 停掉动画。
+                   （库里 resize 的实现：Animations.running(this) ? _resizeBeforeDraw=… : _resize(…)） */
+                if (!inst.width) inst.stop();
+                inst.resize();
+            } catch (e) {}
+        }
+    }
+
+    function watchPanels() {
+        resizeChartsIn(document);                  /* 首屏默认宝箱 */
+        if (!window.MutationObserver) return;
+        var panels = document.querySelectorAll('.chest-content'), i;
+        for (i = 0; i < panels.length; i++) {
+            (function (el) {
+                new MutationObserver(function () {
+                    if (el.classList.contains('active'))
+                        setTimeout(function () { resizeChartsIn(el); }, 0);
+                }).observe(el, { attributes: true, attributeFilter: ['class'] });
+            })(panels[i]);
+        }
+    }
+
+    function setLang(lang) {
+        LANG = lang === 'en' ? 'en' : 'zh';
+        try { localStorage.setItem('cr-lang', LANG); } catch (e) {}
+        document.documentElement.lang = LANG === 'en' ? 'en' : 'zh-CN';
+        var opts = document.querySelectorAll('.lang-opt');
+        for (var i = 0; i < opts.length; i++) {
+            var on = opts[i].getAttribute('data-lang') === LANG;
+            opts[i].classList.toggle('active', on);
+            opts[i].setAttribute('aria-pressed', on ? 'true' : 'false');
+        }
+        busy = true;
+        walk(document.documentElement);   /* 含 <head><title> */
+        busy = false;
+        refreshCharts();
+    }
+
+    /* 页面里动态生成的表格/下拉选项，插入后再翻译一次 */
+    function watch() {
+        if (!window.MutationObserver) return;
+        new MutationObserver(function (muts) {
+            if (busy || LANG !== 'en') return;
+            for (var i = 0; i < muts.length; i++) {
+                var added = muts[i].addedNodes;
+                for (var j = 0; j < added.length; j++) {
+                    if (added[j].nodeType === 1 || added[j].nodeType === 3) walk(added[j]);
+                }
+            }
+        }).observe(document.body, { childList: true, subtree: true });
+    }
+
+    /* ===== 页内导航 =====
+       三段内容（开箱概率 / 奖励数量 / 奖励概率）已在同一页展开，
+       标签栏退化为吸顶的跳转导航，滚动时高亮当前所在段落。
+       部分宝箱缺少「奖励概率」页（原版数据缺口），对应标签直接隐藏。 */
+    function tabsOf() { return document.querySelectorAll('.tab'); }
+
+    function targetOf(tab) {
+        var active = document.querySelector('.chest-type.active');
+        return (active && tab.dataset.tab)
+            ? document.getElementById(active.dataset.chest + '-' + tab.dataset.tab) : null;
+    }
+
+    function measure() {
+        var el = document.querySelector('.topbar');
+        if (el) document.documentElement.style.setProperty('--topbar-h', el.offsetHeight + 'px');
+    }
+
+    function stickyTop() {
+        var bar = document.querySelector('.topbar'), box = document.querySelector('.tabs');
+        return (bar ? bar.offsetHeight : 60) + (box ? box.offsetHeight : 0);
+    }
+
+    function syncTabs() {
+        var tabs = tabsOf();
+        for (var i = 0; i < tabs.length; i++) {
+            var ok = !!targetOf(tabs[i]);
+            tabs[i].classList.toggle('tab-off', !ok);
+            tabs[i].setAttribute('aria-disabled', ok ? 'false' : 'true');
+        }
+        spy();
+    }
+
+    function goTab(tab) {
+        var el = targetOf(tab);
+        if (!el) return;
+        var y = el.getBoundingClientRect().top + (window.pageYOffset || 0) - stickyTop() - 14;
+        window.scrollTo({ top: y < 0 ? 0 : y, behavior: 'smooth' });
+    }
+
+    function spy() {
+        var tabs = tabsOf(), pick = null, first = null, i, el;
+        var line = stickyTop() + 60;
+        for (i = 0; i < tabs.length; i++) {
+            if (tabs[i].classList.contains('tab-off')) continue;
+            el = targetOf(tabs[i]);
+            if (!el) continue;
+            if (!first) first = tabs[i];
+            if (el.getBoundingClientRect().top <= line) pick = tabs[i];
+        }
+        if (!pick) pick = first;
+        for (i = 0; i < tabs.length; i++) tabs[i].classList.toggle('active', tabs[i] === pick);
+    }
+
+    /* ===== 「奖励数量 + 奖励概率」合并成一张表 =====
+       每个星级下并排显示：数量（大字）与概率（小字）。
+       数量：普通/魔法/赛季来自各竞技场数据；进化/英雄是固定值。
+       概率：普通/魔法 = 静态数据，且**只有宝箱等级 13 及以上才有**，低等级不显示；
+             赛季 = 与数量同一竞技场；进化 = 固定 100%；英雄 = 无。 */
+    var CHESTS = ['normal', 'magic', 'season', 'evolution', 'hero'];
+    var STAR_LABEL = { oneStar: '一星', twoStar: '二星', threeStar: '三星', fourStar: '四星', fiveStar: '五星' };
+    var MERGED = {
+        normal: {
+            stars: ['oneStar', 'twoStar', 'threeStar', 'fourStar'],
+            rows: [['gold', '金币'], ['commonCard', '普通卡'], ['rareCard', '稀有卡'],
+                   ['epicCard', '史诗卡'], ['legendaryCard', '传奇卡'], ['heroCard', '英雄卡']],
+            fixedProb: 'normal',
+            probFromLv: 13                  /* 奖励概率只有宝箱等级 >= 13 才有 */
+        },
+        magic: {
+            stars: ['oneStar', 'twoStar', 'threeStar', 'fourStar', 'fiveStar'],
+            rows: [['gold', '金币'], ['banner', '战旗'], ['emote', '表情'], ['commonCard', '普通卡'],
+                   ['rareCard', '稀有卡'], ['epicCard', '史诗卡'], ['legendaryCard', '传奇卡'],
+                   ['heroCard', '英雄卡'], ['commonWildCard', '普通外卡'], ['rareWildCard', '稀有外卡'],
+                   ['epicWildCard', '史诗外卡'], ['legendaryWildCard', '传奇外卡'],
+                   ['heroWildCard', '英雄外卡'], ['evolutionShard', '进化碎片'],
+                   ['evolutionCard', '进化卡']],
+            fixedProb: 'magic',
+            probFromLv: 13
+        },
+        season: {
+            stars: ['oneStar', 'twoStar', 'threeStar', 'fourStar', 'fiveStar'],
+            rows: [['seasonCommonCard', '赛季普通卡'], ['seasonRareCard', '赛季稀有卡'],
+                   ['seasonEpicCard', '赛季史诗卡'], ['seasonLegendaryCard', '赛季传奇卡'],
+                   ['seasonHeroCard', '赛季英雄卡'], ['bannerDecoration', '战旗装饰'],
+                   ['bannerFrame', '战旗框架'], ['emote', '表情'],
+                   ['seasonEvolutionShard', '赛季进化碎片'], ['seasonEvolutionCard', '赛季进化卡']],
+            liveProb: true
+        },
+        evolution: {
+            stars: ['threeStar', 'fourStar', 'fiveStar'],
+            rows: [['evolutionShard', '随机进化碎片']],
+            staticAmount: { evolutionShard: { threeStar: 1, fourStar: 2, fiveStar: 6 } },
+            staticProb: { evolutionShard: { threeStar: 1, fourStar: 1, fiveStar: 1 } }
+        },
+        hero: {
+            stars: ['twoStar', 'threeStar', 'fourStar', 'fiveStar'],
+            rows: [['heroCoin', '英雄硬币']],
+            staticAmount: { heroCoin: { twoStar: 5, threeStar: 10, fourStar: 40, fiveStar: 200 } }
+        }
+    };
+    var MERGED_TITLE = {
+        normal: '普通宝箱 - 奖励数量与概率',
+        magic: '魔法宝箱 - 奖励数量与概率',
+        season: '赛季宝箱 - 奖励数量与概率',
+        evolution: '进化宝箱 - 奖励数量与概率',
+        hero: '英雄宝箱 - 奖励数量与概率'
+    };
+    /* 宝箱等级不足时给出的提示（只有概率列被隐藏时才出现），中文原文固定，其余交给 tr() */
+    var MERGED_NO_PROB = '宝箱等级 13 及以上才有奖励概率数据';
+
+    /* 原页数据是顶层 const，本脚本先于它们执行，只能在函数体内按名取用 */
+    function arenaDataOf(chest) {
+        if (chest === 'normal') return normalArenaData;
+        if (chest === 'magic') return magicArenaData;
+        if (chest === 'season') return seasonArenaData;
+        return null;
+    }
+
+    function findArena(list, range) {
+        if (!list) return null;
+        for (var i = 0; i < list.length; i++) {
+            if (String(list[i].arenaRange) === String(range)) return list[i];
+        }
+        return null;
+    }
+
+    function amountOf(chest, range, star, key) {
+        var spec = MERGED[chest];
+        if (spec.staticAmount) return (spec.staticAmount[key] && spec.staticAmount[key][star]) || 0;
+        var arena = findArena(arenaDataOf(chest), range);
+        return (arena && arena[star] && arena[star][key]) || 0;
+    }
+
+    /* 普通/魔法宝箱的奖励概率只在宝箱等级 >= spec.probFromLv 时存在，低等级一律不显示 */
+    function probAllowed(chest, range) {
+        var spec = MERGED[chest];
+        if (!spec || !spec.probFromLv) return true;
+        var arena = findArena(arenaDataOf(chest), range);
+        var lv = arena ? Number(arena.starLevel) : NaN;
+        return isNaN(lv) ? false : lv >= spec.probFromLv;
+    }
+
+    function chanceOf(chest, range, star, key, idx) {
+        var spec = MERGED[chest], arr, arena;
+        if (spec.staticProb) {
+            var s = spec.staticProb[key];
+            return s && s[star] != null ? s[star] : null;
+        }
+        if (spec.fixedProb) {
+            if (!probAllowed(chest, range)) return null;
+            arr = (CR_PROB[spec.fixedProb] || {})[key];
+            return arr && arr[idx] != null ? arr[idx] : null;
+        }
+        if (spec.liveProb) {
+            arena = findArena(seasonProbabilityData, range);
+            return arena && arena[star] ? (arena[star][key] || 0) : null;
+        }
+        return null;
+    }
+
+    function chanceClass(p) {
+        if (p == null || p <= 0) return '';
+        if (p >= 0.5) return ' probability-high';
+        if (p >= 0.2) return ' probability-medium';
+        return ' probability-low';
+    }
+
+    function renderMerged(chest) {
+        var spec = MERGED[chest];
+        var table = document.getElementById(chest + '-merged-table');
+        if (!spec || !table) return;
+        var sel = document.getElementById(chest + '-arena-level');
+        var range = sel ? sel.value : null;
+        var html = '<thead><tr><th>奖励类型</th>', s, r;
+        for (s = 0; s < spec.stars.length; s++) html += '<th>' + STAR_LABEL[spec.stars[s]] + '</th>';
+        html += '</tr></thead><tbody>';
+        for (r = 0; r < spec.rows.length; r++) {
+            var key = spec.rows[r][0];
+            html += '<tr><td>' + spec.rows[r][1] + '</td>';
+            for (s = 0; s < spec.stars.length; s++) {
+                var amount = amountOf(chest, range, spec.stars[s], key);
+                var p = chanceOf(chest, range, spec.stars[s], key, s);
+                if (!amount && !(p > 0)) { html += '<td>-</td>'; continue; }
+                html += '<td class="reward-cell">';
+                if (amount > 0) html += '<span class="cell-amount">' + amount + '</span>';
+                if (p > 0) html += '<span class="cell-chance' + chanceClass(p) + '">'
+                                + (p * 100).toFixed(2) + '%</span>';
+                html += '</td>';
+            }
+            html += '</tr>';
+        }
+        table.innerHTML = html + '</tbody>';
+        if (LANG === 'en') walk(table);
+
+        /* 概率列被等级门槛挡掉时给一句说明，够级了就整句撤掉 */
+        var note = document.getElementById(chest + '-merged-note');
+        if (note) {
+            var hide = !!(spec.probFromLv && !probAllowed(chest, range));
+            note.textContent = '';
+            if (hide) {
+                var tn = document.createTextNode(MERGED_NO_PROB);
+                tn.__zh = MERGED_NO_PROB;          /* 原文锁成中文，切语言不会漂 */
+                tn.nodeValue = LANG === 'en' ? tr(MERGED_NO_PROB) : MERGED_NO_PROB;
+                note.appendChild(tn);
+            }
+            note.style.display = hide ? '' : 'none';
+        }
+    }
+
+    function buildMerged(chest) {
+        var anchor = document.getElementById(chest + '-chest-probability');
+        var amountSec = document.getElementById(chest + '-arena-rewards');
+        var chanceSec = document.getElementById(chest + '-box-rewards');
+        if (!anchor || document.getElementById(chest + '-merged-rewards')) return;
+
+        var sec = document.createElement('div');
+        sec.className = 'tab-content';
+        sec.id = chest + '-merged-rewards';
+        var html = '<h2 class="section-title">' + MERGED_TITLE[chest] + '</h2>'
+                 + '<div class="arena-selector"></div>'
+                 + '<div class="reward-card"><h3 class="reward-title">奖励详情</h3>'
+                 + '<table class="data-table" id="' + chest + '-merged-table"></table></div>'
+                 + '<p class="table-note" id="' + chest + '-merged-note" style="display:none"></p>';
+        sec.innerHTML = html;
+        anchor.parentNode.insertBefore(sec, anchor.nextSibling);
+
+        /* 原页的竞技场选择器整体搬进来：选项与 change 事件都保留，不用重写 */
+        var group = amountSec ? amountSec.querySelector('.selector-group') : null;
+        if (group) sec.querySelector('.arena-selector').appendChild(group);
+        if (amountSec) amountSec.style.display = 'none';
+        if (chanceSec) chanceSec.style.display = 'none';
+
+        var sel = sec.querySelector('select');
+        if (sel) sel.addEventListener('change', function () { renderMerged(chest); });
+        renderMerged(chest);
+
+        /* 切竞技场时原表会被主脚本重建，跟着刷新即可保持同步 */
+        var srcTbl = document.getElementById(chest + '-rewards-table');
+        if (srcTbl && window.MutationObserver) {
+            new MutationObserver(function () { renderMerged(chest); }).observe(srcTbl, { childList: true });
+        }
+    }
+
+    window.CRI18N = { setLang: setLang, tr: tr, lang: function () { return LANG; } };
+
+    document.addEventListener('DOMContentLoaded', function () {
+        var opts = document.querySelectorAll('.lang-opt');
+        for (var i = 0; i < opts.length; i++) {
+            opts[i].addEventListener('click', function () {
+                setLang(this.getAttribute('data-lang'));
+            });
+        }
+
+        /* 合并后只剩两段：第二项指向合并段，第三项（奖励概率）已并入 → 撤掉锚点让它隐藏 */
+        var tb = tabsOf();
+        if (tb[1]) {
+            tb[1].setAttribute('data-tab', 'merged-rewards');
+            tb[1].textContent = '奖励数量与概率';
+        }
+        if (tb[2]) tb[2].removeAttribute('data-tab');
+
+        var saved = 'zh';
+        try { saved = localStorage.getItem('cr-lang') === 'en' ? 'en' : 'zh'; } catch (e) {}
+        setLang(saved);
+        watch();
+        measure();
+        syncTabs();
+        setTimeout(watchPanels, 0);   /* 等主脚本把 5 张图表建完，再挂面板显示监听 */
+
+        var types = document.querySelectorAll('.chest-type');
+        for (var j = 0; j < types.length; j++) {
+            types[j].addEventListener('click', syncTabs);   /* 注册在主脚本之后，同步执行 */
+        }
+
+        var tabsBox = document.querySelector('.tabs');
+        if (tabsBox) {
+            /* 点击标签 -> 滚到对应段落；主脚本的 class 切换保留，但显示已由 CSS 决定 */
+            tabsBox.addEventListener('click', function (e) {
+                var el = e.target && e.target.closest ? e.target.closest('.tab') : null;
+                if (el && !el.classList.contains('tab-off')) goTab(el);
+            });
+            var ticking = false;
+            window.addEventListener('scroll', function () {
+                if (ticking) return;
+                ticking = true;
+                requestAnimationFrame(function () { ticking = false; spy(); });
+            }, { passive: true });
+        }
+
+        window.addEventListener('resize', function () { measure(); syncTabs(); });
+
+        /* 合并奖励段：等主脚本把下拉框选项填好之后再动手 */
+        setTimeout(function () {
+            for (var k = 0; k < CHESTS.length; k++) buildMerged(CHESTS[k]);
+            if (LANG === 'en') walk(document.body);
+            syncTabs();
+            measure();
+        }, 0);
+    });
+})();
+</script>
+
+    <div class="topbar">
+        <div class="topbar-inner">
+            <div class="brand">
+                <img src="image/season-chest.png" alt="" class="brand-icon">
+                <span class="brand-text">CLASH ROYALE</span>
+            </div>
+            <div class="language-switcher">
+                <div class="lang-toggle" role="group">
+                    <button type="button" class="lang-opt active" data-lang="zh" aria-pressed="true">中文</button>
+                    <button type="button" class="lang-opt" data-lang="en" aria-pressed="false">EN</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="container">
-           <div class="language-switcher">
-                  <a href="en.html" class="lang-btn">English Version</a>
-           </div>
         <header>
             <h1>皇室战争宝箱概率查询</h1>
             <p class="subtitle">查询各种宝箱开箱概率及竞技场奖励详情</p>
@@ -363,7 +1717,7 @@
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th>星级</th>
+                            <th>初始星级</th>
                             <th>旋转数</th>
                             <th>1星概率</th>
                             <th>升星概率</th>
@@ -376,8 +1730,8 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td>初始只有1星</td>
-                            <td>自带3</td>
+                            <td>1星</td>
+                            <td>3</td>
                             <td>31.44%</td>
                             <td>32%</td>
                             <td>45.71%</td>
@@ -483,7 +1837,7 @@
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th>星级</th>
+                            <th>初始星级</th>
                             <th>旋转数</th>
                             <th>1星概率</th>
                             <th>升星概率</th>
@@ -499,20 +1853,20 @@
                     <tbody>
                         <tr>
                             <td>1星</td>
-                            <td>自带4</td>
+                            <td>4</td>
                             <td>31.64%</td>
                             <td>25%</td>
                             <td>43.04%</td>
-                            <td>23%</td>
+                            <td>24%</td>
                             <td>20.25%</td>
-                            <td>23%</td>
+                            <td>26%</td>
                             <td>4.06%</td>
-                            <td>23%</td>
+                            <td>65%</td>
                             <td>1.01%</td>
                         </tr>
                         <tr>
                             <td>2星</td>
-                            <td>自带4</td>
+                            <td>4</td>
                             <td>-</td>
                             <td>-</td>
                             <td>33.36%</td>
@@ -520,12 +1874,12 @@
                             <td>45.59%</td>
                             <td>20%</td>
                             <td>19.71%</td>
-                            <td>6%</td>
+                            <td>8%</td>
                             <td>1.34%</td>
                         </tr>
                         <tr>
                             <td>3星</td>
-                            <td>自带4</td>
+                            <td>4</td>
                             <td>-</td>
                             <td>-</td>
                             <td>-</td>
@@ -538,7 +1892,7 @@
                         </tr>
                         <tr>
                             <td>4星</td>
-                            <td>无旋转</td>
+                            <td>1</td>
                             <td>-</td>
                             <td>-</td>
                             <td>-</td>
@@ -551,7 +1905,7 @@
                         </tr>
                         <tr>
                             <td>5星</td>
-            <td>无旋转</td>
+                            <td>1</td>
                             <td>-</td>
                             <td>-</td>
                             <td>-</td>
@@ -738,7 +2092,7 @@
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th>星级</th>
+                            <th>初始星级</th>
                             <th>旋转数</th>
                             <th>1星概率</th>
                             <th>升星概率</th>
@@ -753,16 +2107,16 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td>初始只有1星</td>
-                            <td>自带4</td>
+                            <td>1星</td>
+                            <td>4</td>
                             <td>31.64%</td>
                             <td>25%</td>
                             <td>43.04%</td>
-                            <td>23%</td>
+                            <td>24%</td>
                             <td>20.25%</td>
-                            <td>23%</td>
+                            <td>26%</td>
                             <td>4.06%</td>
-                            <td>23%</td>
+                            <td>65%</td>
                             <td>1.01%</td>
                         </tr>
                     </tbody>
@@ -824,7 +2178,7 @@
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th>星级</th>
+                            <th>初始星级</th>
                             <th>旋转数</th>
                             <th>3星概率</th>
                             <th>升星概率</th>
@@ -836,7 +2190,7 @@
                     <tbody>
                         <tr>
                             <td>3星</td>
-                            <td>自带3</td>
+                            <td>3</td>
                             <td>49.30%</td>
                             <td>21%</td>
                             <td>45.60%</td>
@@ -845,7 +2199,7 @@
                         </tr>
                         <tr>
                             <td>4星</td>
-                            <td>自带3</td>
+                            <td>3</td>
                             <td>-</td>
                             <td>-</td>
                             <td>79.20%</td>
@@ -854,7 +2208,7 @@
                         </tr>
                         <tr>
                             <td>5星</td>
-                            <td>无旋转</td>
+                            <td>1</td>
                             <td>-</td>
                             <td>-</td>
                             <td>-</td>
@@ -935,7 +2289,7 @@
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th>星级</th>
+                            <th>初始星级</th>
                             <th>旋转数</th>
                             <th>2星概率</th>
                             <th>升星概率</th>
@@ -948,14 +2302,14 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td>初始只有2星</td>
-                            <td>自带3</td>
+                            <td>2星</td>
+                            <td>3</td>
                             <td>34.30%</td>
                             <td>30%</td>
                             <td>52.10%</td>
                             <td>18%</td>
                             <td>12.60%</td>
-                            <td>18.5%</td>
+                            <td>18%</td>
                             <td>1.00%</td>
                         </tr>
                     </tbody>
@@ -968,10 +2322,10 @@
                     <thead>
                         <tr>
                             <th>奖励类型</th>
-                            <th>2星数量</th>
-                            <th>3星数量</th>
-                            <th>4星数量</th>
-                            <th>5星数量</th>
+                            <th>2星</th>
+                            <th>3星</th>
+                            <th>4星</th>
+                            <th>5星</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -988,8 +2342,7 @@
         </div>
         
         <div class="footer">
-            <p>数据来源：皇室战争官方</p>
-            <p style="margin-top: 10px;"><a href="en.html" style="color: var(--primary-color);">切换到英文版</a></p>
+            <p>数据来源：<a href="https://supercell.com/en/games/clashroyale/blog/news/clash-royale-chest-info-2/" target="_blank" rel="noopener">皇室战争官方</a></p>
         </div>
     </div>
 
